@@ -38,7 +38,8 @@
 
 ~~先看一下运行结果
 
-![图2](./img/fino-applet.gif)
+ <img src="./img/fino-applet.gif" width = "200" height = "411" alt="图片名称" align=center />
+
 
 接下来我们将用 iOS 代码来模拟上述的双线程模型。首先我们来实现视图层与逻辑层的数据通讯
 
