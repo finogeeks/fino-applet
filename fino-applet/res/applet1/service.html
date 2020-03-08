@@ -1,0 +1,208 @@
+
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+  <meta charset="UTF-8" />
+  <meta name="content-type" content="text/html; charset=utf-8">
+  <meta http-equlv="Content-Type" content="text/html;charset=utf-8">
+  <meta id="viewport" name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0" />
+  <script>
+
+      var hasDocument = window.hasOwnProperty('document'),
+        isIOS = !1,
+        callbacks = {},
+        callbackIndex = 0,
+        defaultEventHandlers = {},
+        eventPrefix = 'custom_event_',
+        handlers = {},
+        PROTOCAL = 'FinChat',
+        IFRAME_PREFIX = 'hybridjsbrige_'
+        
+      if (hasDocument) {
+        var userAgent = window.navigator.userAgent,
+          isAndroid = userAgent.indexOf('Android') != -1
+        isIOS = !isAndroid
+      }
+      var utils = {
+        parseData: function (str) {
+          var result
+          if (str && typeof str === 'string') {
+            try {
+              result = JSON.parse(str)
+            } catch(e) {
+              result = {
+                status: {
+                  code: 1,
+                  msg: 'PARAM_PARSE_ERROR'
+                }
+              }
+            }
+          } else {
+            result = str || {}
+          }
+          return result
+        }
+      }
+      var postMessage = function (event, paramsString, callbackId) {
+          // postMessage
+          if (isIOS) {
+            window.webkit.messageHandlers.invokeHandler.postMessage({
+              C: event,
+              paramsString: paramsString,
+              callbackId: callbackId
+            })
+          } else {
+            var jsCoreHandleResult = FinChatJSCore.invokeHandler(event, paramsString, callbackId)
+            if (typeof jsCoreHandleResult !== 'undefined' && typeof callbacks[callbackId] === 'function' && jsCoreHandleResult !== '') {
+              try {
+                jsCoreHandleResult = JSON.parse(jsCoreHandleResult)
+              } catch(e) {
+                jsCoreHandleResult = {}
+              }
+              callbacks[callbackId](jsCoreHandleResult),
+              delete callbacks[callbackId]
+            }
+          }
+        },
+        createIframe = function (uri, sid) {
+          var iframe = document.createElement('iframe'),
+            iframeId = IFRAME_PREFIX + sid
+          iframe.style.display = 'none'
+          iframe.setAttribute('id', iframeId)
+          iframe.setAttribute('frameborder', '0')
+          frame.setAttribute('src', uri)
+          document.documentElement.appendChild(iframe)
+        // this.messageIframe = messageIframe
+        },
+        retrieveIframe = function (sid) {
+          var iframeId = IFRAME_PREFIX + sid,
+            iframe = document.querySelector('#' + iframeId)
+          if (iframe) {
+            document.documentElement.removeChild(iframe)
+          }
+        },
+        publishHandler = function (event, paramsString, webviewIds) {
+          // publishHandler
+          isIOS ? window.webkit.messageHandlers.publishHandler.postMessage({
+            event: event,
+            paramsString: paramsString,
+            webviewIds: webviewIds
+          }) : FinChatJSCore.publishHandler(event, paramsString, webviewIds)
+        },
+        invoke = function (event, params, callback) {
+          // postMessage
+          var paramsString = JSON.stringify(params || {}),
+            callbackId = ++callbackIndex
+          // reportLog(event,params,'','invoke')
+          callbacks[callbackId] = callback
+          postMessage(event, paramsString, callbackId)
+        },
+        invokeCallbackHandler = function (callbackId, params) {
+          var callback = callbacks[callbackId]
+          // reportLog('invokeCallbackHandler:'+callbackId,params,'','app2view_get')
+          typeof callback === 'function' && callback(params),
+          delete callbacks[callbackId]
+          if (isIOS) retrieveIframe(callbackId)
+        },
+        oldCallbackHandler = function (data) {
+          // {"bridgeParam":{"action":"call","callbackID":"1468927578039","status":{"status_code":-5,"status_reason":"'module' or 'identifier' is unsupported."}}}
+          if (data) {
+            if (typeof data === 'string') {
+              data = utils.parseData(data)
+            }
+            var callbackId = data.bridgeParam.callbackID
+            // 延迟是为了避免：
+            // 在 ios 中，如果 onComplete 回调中有 alert 等有阻塞作用的代码时，会导致页面“卡死”（Native UI层级覆盖导致点击无效）
+            if (callbackId) {
+              setTimeout(function () {
+                invokeCallbackHandler(callbackId, data.param)
+              },
+                1)
+            }
+          }
+        },
+        publishCallbackHandler = function (callbackId) {
+          if (isIOS) retrieveIframe(callbackId)
+        },
+        on = function (eventName, handler) {
+          defaultEventHandlers[eventName] = handler
+        },
+        publish = function (eventName, params, webviewIds) {
+          // publishHandler
+          webviewIds = webviewIds || []
+          var paramsString, event = eventPrefix + eventName
+          paramsString = JSON.stringify(params)
+          webviewIds = JSON.stringify(webviewIds)
+          publishHandler(event, paramsString, webviewIds)
+        },
+        subscribe = function (eventName, handler) {
+          handlers[eventPrefix + eventName] = handler
+        },
+        subscribeHandler = function (eventName, data, webviewId, reportParams) {
+          // 执行注册的回调
+          // reportLog('subscribeHandler:'+eventName,data,[webviewId||''],'app2view_get')
+          var handler
+          handler = eventName.indexOf(eventPrefix) != -1 ? handlers[eventName] : defaultEventHandlers[eventName]
+          if (typeof handler === 'function') {
+            handler(data, webviewId, reportParams)
+          }
+      }
+      window.ServiceJSBridge = {
+        invoke: invoke,
+        invokeCallbackHandler: invokeCallbackHandler,
+        oldCallbackHandler: oldCallbackHandler,
+        publishCallbackHandler: publishCallbackHandler,
+        on: on,
+        publish: publish,
+        subscribe: subscribe,
+        subscribeHandler: subscribeHandler
+      }
+  </script>
+  <script>
+      var Page = {
+          setData: function(data) {
+               ServiceJSBridge.publish('PAGE_EVENT', {
+                     eventName: 'onPageDataChange',data:data
+                   })
+          },
+          methods: {
+              onTest: function() {
+                  Page.setData({
+                               title: '我来自JS代码更新'
+                               })
+                  console.log('my on Test')
+              }
+          }
+      }
+  var onWebviewEvent = function (fn) {
+      
+    ServiceJSBridge.subscribe('PAGE_EVENT', function (params) {
+                              console.log('FinChatJSBridge.subscribe')
+      var data = params.data,eventName = params.eventName;
+    fn({
+        data: data,
+        eventName: eventName
+      })
+    })
+  }
+  var doWebviewEvent = function ( pEvent, params) { // do dom ready
+    
+    if (Page.methods.hasOwnProperty(pEvent)) {
+        Page.methods[pEvent].call(params);
+    }
+    
+  }
+  
+  onWebviewEvent(function (params) {
+    var eventName = params.eventName
+    var data = params.data
+    return doWebviewEvent( eventName, data)
+  })
+  
+      </script>
+</head>
+<body>
+</body>
+</html>
