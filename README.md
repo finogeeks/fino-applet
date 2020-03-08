@@ -32,17 +32,17 @@
 - Service 和 View 的分离和并行实现可以防止 JS 执行影响或减慢页面渲染，这有助于提高渲染性能。
 - 因为 JS 在 Service 层执行，所以 JS 里面操作的 DOM 将不会对 View 层产生影响，所以小程序是不能操作 DOM 结构的，这也就使得小程序的性能比传统的 H5 更好。
 
-![图1](./img/01.jpg)
+![image.png](https://upload-images.jianshu.io/upload_images/10272390-02e1d39aa10739dc.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
 ## 小程序双线程模型模拟
 
 ~~先看一下运行结果
 
- <img src="./img/fino-applet.gif" width = "200" height = "411" alt="图片名称" align=center />
+![record.gif](https://upload-images.jianshu.io/upload_images/10272390-66ba7e469b479f1a.gif?imageMogr2/auto-orient/strip)
 
 接下来我们将用 iOS 代码来模拟上述的双线程模型。首先我们来实现视图层与逻辑层的数据通讯
 
-![图2](./img/02.jpg)
+![image.png](https://upload-images.jianshu.io/upload_images/10272390-df1a079be039cad8.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
 
 如上图所示，视图层与逻辑层都分别通过 JS Bridge 的 publish 和 subscribe 来实现数据的收发。
 
@@ -50,111 +50,112 @@
 
 1. 视图层调用**JSBridge.publish**把事件传递给原生;参数: {eventName: '', data: {}}
 
-   ```javascript
-   //点击按钮，通知JS执行业务逻辑
-   function onTest() {
-     console.log('aaa')
-     FinChatJSBridge.subscribe('PAGE_EVENT', function (params) {
-                               document.getElementById('testId').innerHTML = params.data.title                                })
-     FinChatJSBridge.publish('PAGE_EVENT', {
-       eventName: 'onTest',data: {}
-     })
-
-   ```
-
+```javascript
+//点击按钮，通知JS执行业务逻辑
+function onTest() {
+  console.log('aaa')
+  FinChatJSBridge.subscribe('PAGE_EVENT', function(params) {
+    document.getElementById('testId').innerHTML = params.data.title
+  })
+  FinChatJSBridge.publish('PAGE_EVENT', {
+    eventName: 'onTest',
+    data: {}
+  })
 }
-
-````
+```
 
 2. 原生 view 层收到 page 的事件，把事件传递转发给 service 层处理
 
-   ```objective-c
-   if ([message.name isEqualToString:@"publishHandler"]) {
-           NSString *e = message.body[@"event"];
-           [self.service callSubscribeHandlerWithEvent:e param:message.body[@"paramsString"]];
-       }
-````
+```objective-c
+if ([message.name isEqualToString:@"publishHandler"]) {
+        NSString *e = message.body[@"event"];
+        [self.service callSubscribeHandlerWithEvent:e param:message.body[@"paramsString"]];
+    }
+```
 
 3. 原生 service 层收到原生 view 层的事件，通过 jsbridge 把事件及参数传递给视图 ervice 层执行 js 逻辑
-   ```objective-c
-   NSString *js = [NSString stringWithFormat:@"ServiceJSBridge.subscribeHandler('%@',%@)",eventName,jsonParam];
-   [self evaluateJavaScript:js completionHandler:nil];
-   ```
+
+```objective-c
+
+NSString *js = [NSString stringWithFormat:@"ServiceJSBridge.subscribeHandler('%@',%@)",eventName,jsonParam];
+[self evaluateJavaScript:js completionHandler:nil];
+```
+
 4. 视图 service，收到事件后，执行 JS 业务代码
 
-   ```javascript
-   var Page = {
-     setData: function(data) {
-       //向原生视图层发送更新数据信息
-       ServiceJSBridge.publish('PAGE_EVENT', {
-         eventName: 'onPageDataChange',
-         data: data
-       })
-     },
-     methods: {
-       onTest: function() {
-         // 执行JS方法，模拟小程序的setData，把数据更新到视图层
-         Page.setData({
-           title: '我来自JS代码更新'
-         })
-         console.log('my on Test')
-       }
-     }
-   }
-   var onWebviewEvent = function(fn) {
-     ServiceJSBridge.subscribe('PAGE_EVENT', function(params) {
-       console.log('FinChatJSBridge.subscribe')
-       var data = params.data,
-         eventName = params.eventName
-       fn({
-         data: data,
-         eventName: eventName
-       })
-     })
-   }
-   var doWebviewEvent = function(pEvent, params) {
-     // do dom ready
+```javascript
+var Page = {
+  setData: function(data) {
+    //向原生视图层发送更新数据信息
+    ServiceJSBridge.publish('PAGE_EVENT', {
+      eventName: 'onPageDataChange',
+      data: data
+    })
+  },
+  methods: {
+    onTest: function() {
+      // 执行JS方法，模拟小程序的setData，把数据更新到视图层
+      Page.setData({
+        title: '我来自JS代码更新'
+      })
+      console.log('my on Test')
+    }
+  }
+}
+var onWebviewEvent = function(fn) {
+  ServiceJSBridge.subscribe('PAGE_EVENT', function(params) {
+    console.log('FinChatJSBridge.subscribe')
+    var data = params.data,
+      eventName = params.eventName
+    fn({
+      data: data,
+      eventName: eventName
+    })
+  })
+}
+var doWebviewEvent = function(pEvent, params) {
+  // do dom ready
 
-     if (Page.methods.hasOwnProperty(pEvent)) {
-       // 收到视图层的事件，执行JS对应的方法
-       Page.methods[pEvent].call(params)
-     }
-   }
-   ```
+  if (Page.methods.hasOwnProperty(pEvent)) {
+    // 收到视图层的事件，执行JS对应的方法
+    Page.methods[pEvent].call(params)
+  }
+}
+```
 
 5. 执行业务 JS 代码后，把数据更新传递给视图层去更新 UI 界面展示数据
-   ```javascript
-   ServiceJSBridge.publish('PAGE_EVENT', {
-     eventName: 'onPageDataChange',
-     data: data
-   })
-   ```
+
+```javascript
+ServiceJSBridge.publish('PAGE_EVENT', {
+  eventName: 'onPageDataChange',
+  data: data
+})
+```
+
 6. 原生 service 层收到视图 service 层的事件，把事件传递给原生视图层
-   ```objective-c
-   if ([message.name isEqualToString:@"publishHandler"]) {
-       NSString *e = message.body[@"event"];
-       [self.controller callSubscribeHandlerWithEvent:e param:message.body[@"paramsString"]];    }
-   ```
+
+```objective-c
+if ([message.name isEqualToString:@"publishHandler"]) {
+    NSString *e = message.body[@"event"];
+    [self.controller callSubscribeHandlerWithEvent:e param:message.body[@"paramsString"]];    }
+```
+
 7. 原生视图层把收到的事件，传递给视图 view 层
-   ```javascript
-    NSString *js = [NSString stringWithFormat:@"FinChatJSBridge.subscribeHandler('%@',%@)",eventName,jsonParam];
-   [self evaluateJavaScript:js completionHandler:nil];
-   ```
+
+```javascript
+NSString *js = [NSString stringWithFormat:@"FinChatJSBridge.subscribeHandler('%@',%@)",eventName,jsonParam];
+[self evaluateJavaScript:js completionHandler:nil];
+```
+
 8. 视图 view 层，收到事件后，更新界面
 
-   ```javascript
-   FinChatJSBridge.subscribe('PAGE_EVENT', function(params) {
-     document.getElementById('testId').innerHTML = params.data.title
-   })
-   ```
-
-onWebviewEvent(function (params) {
-var eventName = params.eventName
-var data = params.data
-return doWebviewEvent( eventName, data)
+```javascript
+FinChatJSBridge.subscribe('PAGE_EVENT', function(params) {
+  document.getElementById('testId').innerHTML = params.data.title
 })
+```
 
-````
+### 订阅数据回调
 
 ```javascript
 // 首先订阅数据回调
@@ -165,11 +166,11 @@ JSBridge.subscribe('PAGE_EVENT', function(params) {
 // eventName: 用于标识事件名
 // data: 为传递的数据
 JSBridge.publish('PAGE_EVENT', { eventName: 'onTest', data: {} })
-````
+```
 
-首先需要对 WKWebView 初始化，
+### WKWebView 初始化，
 
-```object-c
+```objective-c
     WKUserContentController *userContentController = [WKUserContentController new];
     NSString *souce = @"window.__fcjs_environment='miniprogram'";
     WKUserScript *script = [[WKUserScript alloc] initWithSource:souce injectionTime:WKUserScriptInjectionTimeAtDocumentStart forMainFrameOnly:true];
@@ -197,9 +198,9 @@ JSBridge.publish('PAGE_EVENT', { eventName: 'onTest', data: {} })
     [self.webView loadFileURL:fileURL allowingReadAccessToURL:fileURL];
 ```
 
-WKWebView 事件回调处理
+### WKWebView 事件回调处理
 
-```object-c
+```objective-c
 // 执行视图层事件回调
 - (void)callSubscribeHandlerWithEvent:(NSString *)eventName param:(NSString *)jsonParam
 {
@@ -291,6 +292,8 @@ onWebviewEvent(function(params) {
 
 文档中心: [Document](https://mp.finogeeks.com/mop/document/introduce/introduction/)
 
+本文示例代码: [https://github.com/finogeeks/fino-applet](https://github.com/finogeeks/fino-applet)
+
 ## 联系我们，了解更多内容
 
-![](https://mp.finogeeks.com/img/home_plus_qr.6d3fd749.png)
+![image](https://upload-images.jianshu.io/upload_images/10272390-64b35906f69cc383.png?imageMogr2/auto-orient/strip%7CimageView2/2/w/1240)
