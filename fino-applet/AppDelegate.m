@@ -20,8 +20,8 @@
 - (BOOL)application:(UIApplication *)application didFinishLaunchingWithOptions:(NSDictionary *)launchOptions {
     // Override point for customization after application launch.
     
-    NSString *appKey = @"22LyZEib0gLTQdU3MUauAUQt7eY5AnaWDJaPXAGmwUcA";
-    FATConfig *config = [FATConfig configWithAppSecret:@"c8c493cfab0cd180" appKey:appKey];
+    NSString *appKey = @"22LyZEib0gLTQdU3MUauAR1TgQsjmhH3rHM7vRrbY6UA";
+    FATConfig *config = [FATConfig configWithAppSecret:@"9628ad1684944587" appKey:appKey];
     config.apiServer = @"https://mp.finogeeks.com";
     config.apiPrefix = @"/api/v1/mop";
     
